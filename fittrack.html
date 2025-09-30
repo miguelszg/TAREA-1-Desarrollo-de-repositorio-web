@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#9333ea">
+    <meta name="description" content="FitTrack - Tu compañero de entrenamiento">
+    <title>FitTrack PWA</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+        
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOutRight { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const styles = {
+            homeContainer: { minHeight: '100vh', backgroundColor: '#f9fafb', fontFamily: 'system-ui, -apple-system, sans-serif' },
+            header: { background: 'linear-gradient(90deg, #3b82f6 0%, #9333ea 100%)', color: 'white', padding: '2rem 1.5rem 1.5rem', borderBottomLeftRadius: '1.5rem', borderBottomRightRadius: '1.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' },
+            content: { padding: '1.5rem', paddingBottom: '7rem' },
+            workoutCard: { backgroundColor: 'white', borderRadius: '1rem', padding: '1rem', marginBottom: '0.75rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)', border: '1px solid #f3f4f6' },
+            navbar: { position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: 'white', borderTop: '1px solid #e5e7eb', padding: '1rem 1.5rem', borderTopLeftRadius: '1.5rem', borderTopRightRadius: '1.5rem', boxShadow: '0 -4px 6px rgba(0, 0, 0, 0.05)', zIndex: 100 }
+        };
+
+        const NotificationSystem = ({ notifications, onClose }) => {
+            const getColor = (type) => {
+                switch (type) {
+                    case 'success': return { bg: '#ecfdf5', border: '#10b981', text: '#065f46' };
+                    case 'error': return { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' };
+                    case 'info': return { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' };
+                    default: return { bg: '#f9fafb', border: '#6b7280', text: '#374151' };
+                }
+            };
+
+            return (
+                <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 1000, maxWidth: '20rem' }}>
+                    {notifications.map((notif) => {
+                        const colors = getColor(notif.type);
+                        return (
+                            <div key={notif.id} style={{ backgroundColor: colors.bg, border: `1px solid ${colors.border}`, borderRadius: '0.75rem', padding: '1rem', marginBottom: '0.75rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', animation: notif.closing ? 'slideOutRight 0.3s ease-out' : 'slideInRight 0.3s ease-out', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                <div style={{ flex: 1 }}>
+                                    <h4 style={{ fontWeight: '600', color: colors.text, fontSize: '0.875rem' }}>{notif.title}</h4>
+                                    <p style={{ color: colors.text, fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>{notif.message}</p>
+                                </div>
+                                <button onClick={() => onClose(notif.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1.2rem', color: colors.text }}>×</button>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        };
+
+        const FitTrackApp = () => {
+            const [currentScreen, setCurrentScreen] = useState('splash');
+            const [activeTab, setActiveTab] = useState('home');
+            const [notifications, setNotifications] = useState([]);
+            const [isOnline, setIsOnline] = useState(true);
+            const [photo, setPhoto] = useState(null);
+            const [location, setLocation] = useState(null);
+            const [loadingLocation, setLoadingLocation] = useState(false);
+            const [batteryLevel, setBatteryLevel] = useState(null);
+            const [activities, setActivities] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [localData, setLocalData] = useState({ workouts: [], lastSync: null });
+
+            const showNotification = (title, message, type = 'info') => {
+                const id = Date.now();
+                setNotifications((prev) => [...prev, { id, title, message, type, closing: false }]);
+                setTimeout(() => closeNotification(id), 5000);
+            };
+
+            const closeNotification = (id) => {
+                setNotifications((prev) => prev.map((notif) => (notif.id === id ? { ...notif, closing: true } : notif)));
+                setTimeout(() => setNotifications((prev) => prev.filter((notif) => notif.id !== id)), 300);
+            };
+
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    setCurrentScreen('home');
+                    showNotification('¡Bienvenida!', 'FitTrack está listo', 'success');
+                }, 2500);
+                return () => clearTimeout(timer);
+            }, []);
+
+            useEffect(() => {
+                if ('getBattery' in navigator) {
+                    navigator.getBattery().then((battery) => {
+                        setBatteryLevel(Math.round(battery.level * 100));
+                        battery.addEventListener('levelchange', () => {
+                            setBatteryLevel(Math.round(battery.level * 100));
+                        });
+                    });
+                }
+            }, []);
+
+            useEffect(() => {
+                if (activeTab === 'activity') {
+                    setLoading(true);
+                    setTimeout(() => {
+                        const allData = [
+                            { id: 1, type: 'Running', distance: '5.2 km', date: '28 Sep', color: '#ef4444', source: 'online', syncStatus: 'Sincronizado' },
+                            { id: 2, type: 'Cycling', distance: '15 km', date: '27 Sep', color: '#3b82f6', source: 'offline', syncStatus: 'Pendiente de sincronizar' },
+                            { id: 3, type: 'Swimming', distance: '800 m', date: '26 Sep', color: '#06b6d4', source: 'online', syncStatus: 'Sincronizado' },
+                            { id: 4, type: 'Yoga', distance: '30 min', date: '25 Sep', color: '#8b5cf6', source: 'offline', syncStatus: 'Solo local' }
+                        ];
+                        
+                        // Si está offline, solo mostrar datos locales
+                        const filteredData = isOnline ? allData : allData.filter(item => item.source === 'offline');
+                        
+                        setActivities(filteredData);
+                        setLoading(false);
+                    }, 1000);
+                }
+            }, [activeTab, isOnline]);
+
+            const takePhoto = () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.capture = 'environment';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            setPhoto(event.target.result);
+                            vibrate();
+                            showNotification('📸 Foto capturada', 'Foto guardada', 'success');
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                input.click();
+            };
+
+            const getLocation = () => {
+                if (!('geolocation' in navigator)) {
+                    showNotification('❌ GPS no disponible', 'No soporta geolocalización', 'error');
+                    return;
+                }
+
+                setLoadingLocation(true);
+                showNotification('📍 Solicitando GPS', 'Acepta los permisos de ubicación', 'info');
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        setLocation({
+                            lat: position.coords.latitude.toFixed(6),
+                            lng: position.coords.longitude.toFixed(6),
+                            accuracy: position.coords.accuracy.toFixed(0)
+                        });
+                        setLoadingLocation(false);
+                        vibrate();
+                        showNotification('✅ Ubicación obtenida', 'GPS activado correctamente', 'success');
+                    },
+                    (error) => {
+                        setLoadingLocation(false);
+                        let message = 'Error al obtener ubicación';
+                        if (error.code === 1) message = 'Permisos denegados. Ve a Ajustes > Safari > Ubicación';
+                        if (error.code === 2) message = 'Ubicación no disponible';
+                        if (error.code === 3) message = 'Tiempo de espera agotado';
+                        showNotification('❌ Error GPS', message, 'error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            };
+
+            const vibrate = (pattern = 200) => {
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(pattern);
+                    return true;
+                }
+                return false;
+            };
+
+            const vibratePattern = () => {
+                const didVibrate = vibrate([100, 50, 100, 50, 200]);
+                if (didVibrate) {
+                    showNotification('📳 Vibración', 'Patrón ejecutado', 'info');
+                } else {
+                    showNotification('❌ No disponible', 'La vibración no está soportada en iOS Safari', 'error');
+                }
+            };
+
+            const toggleOnline = () => {
+                setIsOnline(!isOnline);
+                showNotification(isOnline ? '📴 Modo Offline' : '🌐 Modo Online', isOnline ? 'Desconectado' : 'Conectado', 'info');
+            };
+
+            if (currentScreen === 'splash') {
+                return (
+                    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #3b82f6 0%, #9333ea 50%, #ec4899 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ animation: 'bounce 1s infinite', fontSize: '6rem' }}>💪</div>
+                        <h1 style={{ fontSize: '3rem', fontWeight: 'bold', color: 'white', marginTop: '1.5rem' }}>FitTrack</h1>
+                        <p style={{ color: 'white', fontSize: '1.125rem', marginTop: '0.5rem', opacity: 0.9 }}>Tu compañero de entrenamiento</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <NotificationSystem notifications={notifications} onClose={closeNotification} />
+                    
+                    {activeTab === 'home' && (
+                        <div style={styles.homeContainer}>
+                            <div style={styles.header}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Hola, Mike</h2>
+                                        <p style={{ color: '#bfdbfe', marginTop: '0.25rem' }}>Lunes, 29 de Septiembre</p>
+                                    </div>
+                                    <button onClick={() => showNotification('🔔 Test', 'Notificación de prueba', 'info')} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '3rem', height: '3rem', cursor: 'pointer', fontSize: '1.5rem' }}>🔔</button>
+                                </div>
+                            </div>
+                            <div style={styles.content}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1f2937', marginBottom: '1rem' }}>Entrenamientos</h3>
+                                {[
+                                    { name: 'Cardio Matutino', duration: '30 min', calories: 250, icon: '🏃' },
+                                    { name: 'Fuerza', duration: '45 min', calories: 320, icon: '💪' },
+                                    { name: 'Yoga', duration: '20 min', calories: 120, icon: '🧘' }
+                                ].map((workout, i) => (
+                                    <div key={i} style={styles.workoutCard}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                            <span style={{ fontSize: '2rem' }}>{workout.icon}</span>
+                                            <div style={{ flex: 1 }}>
+                                                <h4 style={{ fontWeight: '600', color: '#1f2937', fontSize: '1.125rem' }}>{workout.name}</h4>
+                                                <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>{workout.duration} • {workout.calories} kcal</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'activity' && (
+                        <div style={styles.homeContainer}>
+                            <div style={styles.header}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Actividades</h2>
+                                        <p style={{ color: '#bfdbfe', fontSize: '0.875rem', marginTop: '0.5rem' }}>{isOnline ? '🌐 Modo Online' : '📴 Modo Offline'}</p>
+                                    </div>
+                                    <button onClick={toggleOnline} style={{ padding: '0.5rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>
+                                        {isOnline ? '📶' : '📵'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={styles.content}>
+                                <div style={{ padding: '1rem', backgroundColor: isOnline ? '#eff6ff' : '#fef3c7', borderRadius: '0.75rem', marginBottom: '1rem', border: isOnline ? '1px solid #93c5fd' : '1px solid #fcd34d' }}>
+                                    <p style={{ fontSize: '0.875rem', color: isOnline ? '#1e40af' : '#92400e', fontWeight: '600', marginBottom: '0.5rem' }}>
+                                        {isOnline ? '💡 Modo Online' : '⚠️ Modo Offline'}
+                                    </p>
+                                    <p style={{ fontSize: '0.75rem', color: isOnline ? '#1e3a8a' : '#78350f', lineHeight: '1.5' }}>
+                                        {isOnline ? (
+                                            <>Mostrando todos los datos:<br/>☁️ <strong>Online:</strong> Sincronizados con servidor<br/>💾 <strong>Offline:</strong> Solo locales</>
+                                        ) : (
+                                            <>Sin conexión a internet.<br/>Solo se muestran los <strong>{activities.length} datos guardados localmente</strong>. Conéctate para ver todos.</>
+                                        )}
+                                    </p>
+                                </div>
+
+                                {loading ? (
+                                    <div style={{ textAlign: 'center', padding: '4rem 0' }}>
+                                        <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #9333ea', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div>
+                                    </div>
+                                ) : activities.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#fef2f2', borderRadius: '1rem', border: '1px solid #fecaca' }}>
+                                        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📴</div>
+                                        <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#991b1b', marginBottom: '0.5rem' }}>Sin datos offline</h3>
+                                        <p style={{ color: '#7f1d1d', fontSize: '0.875rem' }}>No hay actividades guardadas localmente. Conéctate a internet para sincronizar.</p>
+                                    </div>
+                                ) : (
+                                    activities.map((activity) => (
+                                        <div key={activity.id} style={styles.workoutCard}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                                                    <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: activity.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                                                        {activity.type === 'Running' ? '🏃' : activity.type === 'Cycling' ? '🚴' : activity.type === 'Swimming' ? '🏊' : '🧘'}
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <h4 style={{ fontWeight: '600', color: '#1f2937', fontSize: '1rem' }}>{activity.type}</h4>
+                                                        <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>{activity.distance} • {activity.date}</p>
+                                                    </div>
+                                                </div>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    gap: '0.25rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '0.5rem',
+                                                    backgroundColor: activity.source === 'online' ? '#dbeafe' : '#fef3c7',
+                                                    fontSize: '1rem'
+                                                }}>
+                                                    {activity.source === 'online' ? '☁️' : '💾'}
+                                                </div>
+                                            </div>
+                                            
+                                            <div style={{ 
+                                                paddingTop: '0.75rem', 
+                                                borderTop: '1px solid #f3f4f6',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Estado:</span>
+                                                    <span style={{ 
+                                                        fontSize: '0.75rem', 
+                                                        fontWeight: '600',
+                                                        color: activity.source === 'online' ? '#10b981' : '#f59e0b'
+                                                    }}>
+                                                        {activity.syncStatus}
+                                                    </span>
+                                                </div>
+                                                <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                                                    {activity.source === 'online' ? 'Cloud Storage' : 'Local Storage'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'progress' && (
+                        <div style={styles.homeContainer}>
+                            <div style={styles.header}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Hardware</h2>
+                                        <p style={{ color: '#bfdbfe', fontSize: '0.875rem', marginTop: '0.5rem' }}>Dispositivos físicos</p>
+                                    </div>
+                                    {batteryLevel !== null && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>
+                                            <span style={{ fontSize: '1.5rem' }}>🔋</span>
+                                            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{batteryLevel}%</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={styles.content}>
+                                {/* Cámara */}
+                                <div style={styles.workoutCard}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                        <span style={{ fontSize: '2rem' }}>📸</span>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>Cámara</h3>
+                                            <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Toma fotos de progreso</p>
+                                        </div>
+                                    </div>
+                                    {photo && <img src={photo} alt="Foto" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '1rem' }} />}
+                                    <button onClick={takePhoto} style={{ width: '100%', padding: '0.75rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer' }}>
+                                        {photo ? 'Tomar otra foto' : 'Abrir cámara'}
+                                    </button>
+                                </div>
+
+                                {/* GPS */}
+                                <div style={styles.workoutCard}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                        <span style={{ fontSize: '2rem' }}>📍</span>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>GPS</h3>
+                                            <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Obtén tu ubicación</p>
+                                        </div>
+                                    </div>
+                                    {location && (
+                                        <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #86efac' }}>
+                                            <p style={{ fontSize: '0.875rem', color: '#166534' }}><strong>Lat:</strong> {location.lat}</p>
+                                            <p style={{ fontSize: '0.875rem', color: '#166534' }}><strong>Lng:</strong> {location.lng}</p>
+                                            <p style={{ fontSize: '0.75rem', color: '#15803d' }}>Precisión: ±{location.accuracy}m</p>
+                                        </div>
+                                    )}
+                                    <button onClick={getLocation} disabled={loadingLocation} style={{ width: '100%', padding: '0.75rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: loadingLocation ? 'not-allowed' : 'pointer', opacity: loadingLocation ? 0.6 : 1 }}>
+                                        {loadingLocation ? 'Obteniendo...' : 'Obtener ubicación'}
+                                    </button>
+                                    <div style={{ marginTop: '0.75rem', padding: '0.75rem', backgroundColor: '#fef3c7', borderRadius: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
+                                        <strong>💡 iOS:</strong> Acepta los permisos cuando Safari los solicite
+                                    </div>
+                                </div>
+
+                                {/* Vibración */}
+                                <div style={styles.workoutCard}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                        <span style={{ fontSize: '2rem' }}>📳</span>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>Vibración</h3>
+                                            <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Feedback háptico</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={vibratePattern} style={{ width: '100%', padding: '0.75rem', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer' }}>
+                                        Vibrar dispositivo
+                                    </button>
+                                    <div style={{ marginTop: '0.75rem', padding: '0.75rem', backgroundColor: '#fef2f2', borderRadius: '0.5rem', fontSize: '0.75rem', color: '#991b1b' }}>
+                                        <strong>⚠️ iOS:</strong> Safari no soporta la API de vibración
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'profile' && (
+                        <div style={styles.homeContainer}>
+                            <div style={styles.header}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>👤</div>
+                                    <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Mike García</h2>
+                                    <p style={{ color: '#bfdbfe', marginTop: '0.25rem' }}>Miembro desde Enero 2025</p>
+                                </div>
+                            </div>
+                            <div style={styles.content}>
+                                <div style={styles.workoutCard}>
+                                    <h3 style={{ fontWeight: '600', color: '#1f2937', marginBottom: '0.5rem' }}>📊 Estadísticas</h3>
+                                    <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>24 entrenamientos este mes</p>
+                                    <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>18 horas de actividad</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Navbar */}
+                    <nav style={styles.navbar}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
+                            {[
+                                { id: 'home', label: 'Inicio', icon: '🏠' },
+                                { id: 'activity', label: 'Actividad', icon: '⚡' },
+                                { id: 'progress', label: 'Hardware', icon: '📱' },
+                                { id: 'profile', label: 'Perfil', icon: '👤' }
+                            ].map((tab) => (
+                                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: activeTab === tab.id ? '#9333ea' : '#9ca3af' }}>
+                                    <span style={{ fontSize: '1.5rem' }}>{tab.icon}</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: activeTab === tab.id ? '500' : '400' }}>{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FitTrackApp />);
+    </script>
+</body>
+</html>
