@@ -1,259 +1,5 @@
-// ============ COMPONENTE: PANTALLA DE PROGRESO CON HARDWARE ============
-const ProgressScreen = ({ showNotification }) => {
-  const [photo, setPhoto] = useState(null);
-  const [location, setLocation] = useState(null);
-  const [loadingLocation, setLoadingLocation] = useState(false);
-  const [batteryLevel, setBatteryLevel] = useState(null);
-
-  // Detectar nivel de batería
-  useEffect(() => {
-    if ('getBattery' in navigator) {
-      navigator.getBattery().then((battery) => {
-        setBatteryLevel(Math.round(battery.level * 100));
-        
-        battery.addEventListener('levelchange', () => {
-          setBatteryLevel(Math.round(battery.level * 100));
-        });
-      });
-    }
-  }, []);
-
-  // Tomar foto con la cámara
-  const takePhoto = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setPhoto(event.target.result);
-          vibrate();
-          showNotification('📸 Foto capturada', 'Foto de progreso guardada', 'success');
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    
-    input.click();
-  };
-
-  // Obtener ubicación GPS
-  const getLocation = () => {
-    if (!('geolocation' in navigator)) {
-      showNotification('❌ GPS no disponible', 'Tu dispositivo no soporta geolocalización', 'error');
-      return;
-    }
-
-    setLoadingLocation(true);
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          lat: position.coords.latitude.toFixed(6),
-          lng: position.coords.longitude.toFixed(6),
-          accuracy: position.coords.accuracy.toFixed(0)
-        });
-        setLoadingLocation(false);
-        vibrate();
-        showNotification('📍 Ubicación obtenida', 'GPS activado correctamente', 'success');
-      },
-      (error) => {
-        setLoadingLocation(false);
-        let message = 'Error al obtener ubicación';
-        if (error.code === 1) message = 'Permiso de ubicación denegado';
-        showNotification('❌ Error GPS', message, 'error');
-      }
-    );
-  };
-
-  // Vibración háptica
-  const vibrate = (pattern = 200) => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate(pattern);
-    }
-  };
-
-  const vibratePattern = () => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate([100, 50, 100, 50, 200]);
-      showNotification('📳 Vibración', 'Patrón de vibración ejecutado', 'info');
-    } else {
-      showNotification('❌ Vibración no disponible', 'Tu dispositivo no soporta vibración', 'error');
-    }
-  };
-
-  return (
-    <div style={styles.homeContainer}>
-      <div style={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Hardware</h2>
-            <p style={{ color: '#bfdbfe', fontSize: '0.875rem', marginTop: '0.5rem' }}>Dispositivos físicos</p>
-          </div>
-          {batteryLevel !== null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem' }}>
-              <Battery size={20} color="white" />
-              <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{batteryLevel}%</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={styles.content}>
-        {/* Cámara */}
-        <div style={styles.workoutCard}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Camera size={24} color="#3b82f6" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>Cámara</h3>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>Toma fotos de tu progreso</p>
-            </div>
-          </div>
-          
-          {photo && (
-            <img 
-              src={photo} 
-              alt="Foto de progreso" 
-              style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '0.5rem', marginBottom: '1rem' }} 
-            />
-          )}
-          
-          <button
-            onClick={takePhoto}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Camera size={20} />
-            {photo ? 'Tomar otra foto' : 'Abrir cámara'}
-          </button>
-        </div>
-
-        {/* GPS */}
-        <div style={styles.workoutCard}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <MapPin size={24} color="#10b981" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>Geolocalización</h3>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>Rastrea tu ubicación GPS</p>
-            </div>
-          </div>
-
-          {location && (
-            <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #86efac' }}>
-              <p style={{ fontSize: '0.875rem', color: '#166534', marginBottom: '0.5rem' }}>
-                <strong>Latitud:</strong> {location.lat}
-              </p>
-              <p style={{ fontSize: '0.875rem', color: '#166534', marginBottom: '0.5rem' }}>
-                <strong>Longitud:</strong> {location.lng}
-              </p>
-              <p style={{ fontSize: '0.75rem', color: '#15803d' }}>
-                Precisión: ±{location.accuracy}m
-              </p>
-            </div>
-          )}
-
-          <button
-            onClick={getLocation}
-            disabled={loadingLocation}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              backgroundColor: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              cursor: loadingLocation ? 'not-allowed' : 'pointer',
-              opacity: loadingLocation ? 0.6 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <MapPin size={20} />
-            {loadingLocation ? 'Obteniendo ubicación...' : 'Obtener ubicación'}
-          </button>
-        </div>
-
-        {/* Vibración */}
-        <div style={styles.workoutCard}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Smartphone size={24} color="#f59e0b" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>Vibración</h3>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>Feedback háptico del dispositivo</p>
-            </div>
-          </div>
-
-          <button
-            onClick={vibratePattern}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              backgroundColor: '#f59e0b',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Smartphone size={20} />
-            Vibrar dispositivo
-          </button>
-
-          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fffbeb', borderRadius: '0.5rem', border: '1px solid #fcd34d' }}>
-            <p style={{ fontSize: '0.75rem', color: '#92400e' }}>
-              <strong>💡 Nota:</strong> La vibración funciona mejor en dispositivos móviles físicos.
-            </p>
-          </div>
-        </div>
-
-        {/* Info adicional */}
-        <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: '#eff6ff', borderRadius: '0.75rem', border: '1px solid #93c5fd' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <Info size={20} color="#1e40af" />
-            <h4 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1e40af' }}>APIs del Dispositivo</h4>
-          </div>
-          <ul style={{ fontSize: '0.75rem', color: '#1e3a8a', lineHeight: '1.6', paddingLeft: '1.25rem', margin: 0 }}>
-            <li>Cámara: MediaDevices API</li>
-            <li>GPS: Geolocation API</li>
-            <li>Vibración: Vibration API</li>
-            <li>Batería: Battery Status API</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-};import React, { useState, useEffect } from 'react';
-import { Dumbbell, Home, Activity, TrendingUp, User, Plus, Zap, Wifi, WifiOff, Database, Cloud, HardDrive, RefreshCw, Bell, X, CheckCircle, AlertCircle, Info, Camera, MapPin, Smartphone, Battery, BatteryCharging } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Dumbbell, Home, Activity, TrendingUp, User, Plus, Zap, Wifi, WifiOff, Database, Cloud, HardDrive, RefreshCw, Bell, X, CheckCircle, AlertCircle, Info, Battery, BatteryCharging, Camera, Smartphone, MapPin, Navigation } from 'lucide-react';
 
 // ============ ESTILOS GLOBALES ============
 const styles = {
@@ -427,9 +173,10 @@ const WorkoutCard = ({ workout }) => (
 const FitTrackApp = () => {
   const [currentScreen, setCurrentScreen] = useState('splash');
   const [activeTab, setActiveTab] = useState('home');
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [notifications, setNotifications] = useState([]);
   const [localData, setLocalData] = useState({ workouts: [], lastSync: null });
+  const [notificationPermission, setNotificationPermission] = useState('default');
 
   // Sistema de notificaciones
   const showNotification = (title, message, type = 'info') => {
@@ -437,10 +184,34 @@ const FitTrackApp = () => {
     const newNotif = { id, title, message, type, closing: false };
     setNotifications((prev) => [...prev, newNotif]);
 
-    // Auto-cerrar después de 5 segundos
+    // Notificación del navegador si hay permiso
+    if (notificationPermission === 'granted' && 'Notification' in window) {
+      new Notification(title, {
+        body: message,
+        icon: '/fitness-icon.png',
+        badge: '/badge-icon.png'
+      });
+    }
+
     setTimeout(() => {
       closeNotification(id);
     }, 5000);
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+        showNotification('🔔 Notificaciones activadas', 'Recibirás alertas de entrenamiento', 'success');
+      } else {
+        showNotification('❌ Permiso denegado', 'No podrás recibir notificaciones del sistema', 'error');
+      }
+    } else if (Notification.permission === 'granted') {
+      showNotification('✅ Ya activadas', 'Las notificaciones ya están habilitadas', 'info');
+    } else {
+      showNotification('ℹ️ No disponible', 'Las notificaciones ya fueron configuradas', 'info');
+    }
   };
 
   const closeNotification = (id) => {
@@ -473,6 +244,36 @@ const FitTrackApp = () => {
       showNotification('¡Bienvenida!', 'FitTrack está listo para ayudarte', 'success');
     }, 2500);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Detectar cambios reales en la conexión de internet
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🟢 Conexión restaurada');
+      setIsOnline(true);
+      showNotification('🌐 Conexión restaurada', 'Ahora tienes acceso a internet', 'success');
+    };
+
+    const handleOffline = () => {
+      console.log('🔴 Sin conexión');
+      setIsOnline(false);
+      showNotification('📴 Sin conexión', 'Usando datos guardados en cache', 'info');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Solicitar permiso de notificaciones al iniciar
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
   }, []);
 
   // Notificaciones periódicas (simuladas)
@@ -519,7 +320,7 @@ const FitTrackApp = () => {
               <p style={{ color: '#bfdbfe', marginTop: '0.25rem' }}>Lunes, 29 de Septiembre</p>
             </div>
             <button
-              onClick={() => showNotification('🔔 Notificación', 'Esta es una notificación de prueba', 'info')}
+              onClick={requestNotificationPermission}
               style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '3rem', height: '3rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Bell size={20} color="white" />
@@ -536,7 +337,7 @@ const FitTrackApp = () => {
           <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: '#fef3c7', borderRadius: '0.75rem', border: '1px solid #fcd34d' }}>
             <p style={{ fontSize: '0.875rem', color: '#92400e', fontWeight: '600' }}>💡 Tip de Notificaciones</p>
             <p style={{ fontSize: '0.75rem', color: '#78350f', marginTop: '0.5rem' }}>
-              Haz clic en el botón 🔔 para probar notificaciones. Se generan automáticamente cada 30 segundos.
+              Haz clic en el botón 🔔 para activar notificaciones del sistema. Recibirás alertas incluso cuando no estés usando la app.
             </p>
           </div>
         </div>
@@ -550,55 +351,220 @@ const FitTrackApp = () => {
     const [loading, setLoading] = useState(true);
     const [dataSource, setDataSource] = useState('');
     const [syncing, setSyncing] = useState(false);
+    const [batteryLevel, setBatteryLevel] = useState(null);
+    const [isCharging, setIsCharging] = useState(false);
+    const [cameraStream, setCameraStream] = useState(null);
+    const [photoTaken, setPhotoTaken] = useState(null);
+    const [location, setLocation] = useState(null);
+    const [gettingLocation, setGettingLocation] = useState(false);
 
     useEffect(() => {
       const cachedData = localDB.get('workouts');
       
       if (!isOnline && cachedData && cachedData.length > 0) {
+        console.log('📴 OFFLINE: Usando cache');
         setActivities(cachedData);
         setDataSource('offline');
         setLoading(false);
-      } else if (isOnline) {
-        setTimeout(() => {
-          const data = [
-            { id: 1, type: 'Running', distance: '5.2 km', pace: '5:30 min/km', date: '28 Sep', icon: Zap, color: '#ef4444' },
-            { id: 2, type: 'Cycling', distance: '15 km', pace: '22 km/h', date: '27 Sep', icon: Activity, color: '#3b82f6' }
+        return;
+      }
+      
+      if (isOnline) {
+        console.log('🌐 ONLINE: Obteniendo datos mixtos');
+        const timer = setTimeout(() => {
+          const onlineData = [
+            { id: 1, type: 'Running', distance: '5.2 km', pace: '5:30 min/km', date: '28 Sep', icon: Zap, color: '#ef4444', source: 'online' },
+            { id: 2, type: 'Cycling', distance: '15 km', pace: '22 km/h', date: '27 Sep', icon: Activity, color: '#3b82f6', source: 'online' }
           ];
-          localDB.save('workouts', data);
-          setActivities(data);
-          setDataSource('online');
+          
+          const offlineData = [
+            { id: 3, type: 'Swimming', distance: '800 m', pace: '2:15 min/100m', date: '26 Sep', icon: TrendingUp, color: '#06b6d4', source: 'cache' },
+            { id: 4, type: 'Weightlifting', distance: '45 min', pace: '12 sets', date: '25 Sep', icon: Dumbbell, color: '#8b5cf6', source: 'cache' }
+          ];
+          
+          const mixedData = [...onlineData, ...offlineData];
+          localDB.save('workouts', mixedData);
+          setActivities(mixedData);
+          setDataSource('mixed');
           setLoading(false);
+          console.log('✅ Datos cargados');
         }, 1500);
-      } else {
+        
+        return () => clearTimeout(timer);
+      }
+      
+      if (!isOnline && (!cachedData || cachedData.length === 0)) {
+        console.log('❌ Sin cache');
         setDataSource('none');
         setLoading(false);
       }
-    }, [isOnline]);
+    }, []);
 
-    const toggleOnline = () => {
-      const newOnlineState = !isOnline;
-      setIsOnline(newOnlineState);
-      showNotification(
-        newOnlineState ? '🌐 Modo Online' : '📴 Modo Offline',
-        newOnlineState ? 'Conexión activada' : 'Conexión desactivada',
-        'info'
-      );
-    };
+    // Obtener nivel de batería
+    useEffect(() => {
+      const getBatteryInfo = async () => {
+        if ('getBattery' in navigator) {
+          try {
+            const battery = await navigator.getBattery();
+            setBatteryLevel(Math.round(battery.level * 100));
+            setIsCharging(battery.charging);
+            
+            battery.addEventListener('levelchange', () => {
+              setBatteryLevel(Math.round(battery.level * 100));
+            });
+            
+            battery.addEventListener('chargingchange', () => {
+              setIsCharging(battery.charging);
+            });
+            
+            console.log('🔋 Batería detectada:', Math.round(battery.level * 100) + '%');
+          } catch (error) {
+            console.log('❌ No se pudo acceder a la batería');
+          }
+        } else {
+          console.log('❌ API de batería no disponible');
+        }
+      };
+      
+      getBatteryInfo();
+    }, []);
 
     const handleSync = () => {
-      if (!isOnline) return;
+      if (!isOnline) {
+        showNotification('❌ Sin conexión', 'No puedes sincronizar sin internet', 'error');
+        return;
+      }
       setSyncing(true);
+      setLoading(true);
+      
       setTimeout(() => {
-        const data = [
-          { id: 1, type: 'Running', distance: '5.2 km', pace: '5:30 min/km', date: '28 Sep', icon: Zap, color: '#ef4444' },
-          { id: 2, type: 'Cycling', distance: '15 km', pace: '22 km/h', date: '27 Sep', icon: Activity, color: '#3b82f6' }
+        const onlineData = [
+          { id: 1, type: 'Running', distance: '5.2 km', pace: '5:30 min/km', date: '28 Sep', icon: Zap, color: '#ef4444', source: 'online' },
+          { id: 2, type: 'Cycling', distance: '15 km', pace: '22 km/h', date: '27 Sep', icon: Activity, color: '#3b82f6', source: 'online' }
         ];
-        localDB.save('workouts', data);
-        setActivities(data);
+        
+        const offlineData = [
+          { id: 3, type: 'Swimming', distance: '800 m', pace: '2:15 min/100m', date: '26 Sep', icon: TrendingUp, color: '#06b6d4', source: 'cache' },
+          { id: 4, type: 'Weightlifting', distance: '45 min', pace: '12 sets', date: '25 Sep', icon: Dumbbell, color: '#8b5cf6', source: 'cache' }
+        ];
+        
+        const mixedData = [...onlineData, ...offlineData];
+        
+        localDB.save('workouts', mixedData);
+        setActivities(mixedData);
+        setDataSource('mixed');
         setSyncing(false);
+        setLoading(false);
         showNotification('🔄 Sincronizado', 'Datos actualizados exitosamente', 'success');
       }, 1000);
     };
+
+    // Función para obtener ubicación GPS
+    const handleGetLocation = () => {
+      if (!('geolocation' in navigator)) {
+        showNotification('❌ No disponible', 'Tu dispositivo no soporta geolocalización', 'error');
+        return;
+      }
+
+      setGettingLocation(true);
+      showNotification('📍 Obteniendo ubicación...', 'Buscando tu posición GPS', 'info');
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const locationData = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+          setLocation(locationData);
+          setGettingLocation(false);
+          showNotification(
+            '✅ Ubicación obtenida',
+            `Lat: ${locationData.latitude.toFixed(4)}, Lng: ${locationData.longitude.toFixed(4)}`,
+            'success'
+          );
+          console.log('📍 GPS:', locationData);
+        },
+        (error) => {
+          setGettingLocation(false);
+          let message = 'No se pudo obtener la ubicación';
+          if (error.code === 1) message = 'Permiso denegado';
+          if (error.code === 2) message = 'Posición no disponible';
+          if (error.code === 3) message = 'Tiempo de espera agotado';
+          showNotification('❌ Error GPS', message, 'error');
+          console.log('❌ Error GPS:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    };
+
+    // Función para vibrar
+    const handleVibrate = () => {
+      if ('vibrate' in navigator) {
+        navigator.vibrate([200, 100, 200]);
+        showNotification('📳 Vibración', 'Dispositivo vibrando', 'success');
+        console.log('📳 Vibrando...');
+      } else {
+        showNotification('❌ No disponible', 'Tu dispositivo no soporta vibración', 'error');
+        console.log('❌ Vibración no disponible');
+      }
+    };
+
+    // Función para abrir cámara
+    const handleCamera = async () => {
+      if (!cameraStream) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user' },
+            audio: false 
+          });
+          setCameraStream(stream);
+          showNotification('📸 Cámara activada', 'Toca "Capturar" para tomar foto', 'success');
+          console.log('📸 Cámara activada');
+        } catch (error) {
+          showNotification('❌ Error', 'No se pudo acceder a la cámara', 'error');
+          console.log('❌ Error al acceder a la cámara:', error);
+        }
+      } else {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+        setPhotoTaken(null);
+        console.log('📸 Cámara desactivada');
+      }
+    };
+
+    // Función para capturar foto
+    const handleCapture = () => {
+      if (cameraStream) {
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        const photoUrl = canvas.toDataURL('image/png');
+        setPhotoTaken(photoUrl);
+        
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+        
+        showNotification('✅ Foto capturada', 'Imagen guardada exitosamente', 'success');
+        console.log('📸 Foto capturada');
+      }
+    };
+
+    // Limpiar stream al desmontar
+    useEffect(() => {
+      return () => {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+        }
+      };
+    }, [cameraStream]);
 
     return (
       <div style={styles.homeContainer}>
@@ -610,40 +576,221 @@ const FitTrackApp = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {dataSource === 'online' ? <Cloud size={16} color="#bfdbfe" /> : <HardDrive size={16} color="#fde68a" />}
                 <p style={{ color: '#bfdbfe', fontSize: '0.875rem' }}>
-                  {dataSource === 'online' ? 'Remoto' : 'Local'}
+                  {dataSource === 'online' ? 'Remoto' : 'Cache Local'}
                 </p>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button onClick={toggleOnline} style={{ padding: '0.5rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer' }}>
+              <div style={{ padding: '0.5rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center' }}>
                 {isOnline ? <Wifi size={20} color="white" /> : <WifiOff size={20} color="white" />}
-              </button>
+              </div>
               <button onClick={handleSync} disabled={!isOnline} style={{ padding: '0.5rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.2)', border: 'none', cursor: isOnline ? 'pointer' : 'not-allowed', opacity: isOnline ? 1 : 0.5 }}>
                 <RefreshCw size={20} color="white" style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
               </button>
             </div>
           </div>
+          
+          {batteryLevel !== null && (
+            <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {isCharging ? <BatteryCharging size={20} color="#10b981" /> : <Battery size={20} color={batteryLevel > 20 ? '#bfdbfe' : '#ef4444'} />}
+                <span style={{ fontSize: '0.875rem', color: '#bfdbfe' }}>
+                  Batería: {batteryLevel}% {isCharging && '(Cargando)'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.content}>
+          {/* Controles de Hardware */}
+          <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+            <button
+              onClick={handleVibrate}
+              style={{
+                padding: '1rem',
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontWeight: '600',
+                fontSize: '0.75rem'
+              }}
+            >
+              <Smartphone size={20} />
+              Vibrar
+            </button>
+            
+            <button
+              onClick={handleCamera}
+              style={{
+                padding: '1rem',
+                backgroundColor: cameraStream ? '#ef4444' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontWeight: '600',
+                fontSize: '0.75rem'
+              }}
+            >
+              <Camera size={20} />
+              {cameraStream ? 'Cerrar' : 'Cámara'}
+            </button>
+
+            <button
+              onClick={handleGetLocation}
+              disabled={gettingLocation}
+              style={{
+                padding: '1rem',
+                backgroundColor: location ? '#10b981' : '#f59e0b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.75rem',
+                cursor: gettingLocation ? 'wait' : 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontWeight: '600',
+                fontSize: '0.75rem',
+                opacity: gettingLocation ? 0.7 : 1
+              }}
+            >
+              {gettingLocation ? <Navigation size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <MapPin size={20} />}
+              {gettingLocation ? 'GPS...' : location ? 'Ubicado' : 'GPS'}
+            </button>
+          </div>
+
+          {/* Mostrar Ubicación */}
+          {location && (
+            <div style={{ marginBottom: '1.5rem', backgroundColor: 'white', borderRadius: '1rem', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <MapPin size={20} color="#10b981" />
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1f2937' }}>Tu ubicación GPS:</h4>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                <div>
+                  <strong>Latitud:</strong> {location.latitude.toFixed(6)}
+                </div>
+                <div>
+                  <strong>Longitud:</strong> {location.longitude.toFixed(6)}
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <strong>Precisión:</strong> ±{location.accuracy.toFixed(0)} metros
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Vista de Cámara */}
+          {cameraStream && (
+            <div style={{ marginBottom: '1.5rem', backgroundColor: 'white', borderRadius: '1rem', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+              <video
+                id="cameraVideo"
+                autoPlay
+                playsInline
+                ref={(video) => {
+                  if (video && cameraStream) {
+                    video.srcObject = cameraStream;
+                  }
+                }}
+                style={{ width: '100%', borderRadius: '0.5rem', marginBottom: '0.75rem' }}
+              />
+              <button
+                onClick={handleCapture}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.875rem'
+                }}
+              >
+                📸 Capturar Foto
+              </button>
+            </div>
+          )}
+
+          {/* Foto Capturada */}
+          {photoTaken && (
+            <div style={{ marginBottom: '1.5rem', backgroundColor: 'white', borderRadius: '1rem', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+              <h4 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1f2937', marginBottom: '0.75rem' }}>Última foto capturada:</h4>
+              <img src={photoTaken} alt="Captura" style={{ width: '100%', borderRadius: '0.5rem' }} />
+            </div>
+          )}
+
           {loading ? (
             <div style={{ textAlign: 'center', padding: '4rem 0' }}>
               <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #9333ea', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div>
+              <p style={{ marginTop: '1rem', color: '#6b7280' }}>Cargando...</p>
+            </div>
+          ) : dataSource === 'none' ? (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#fef2f2', borderRadius: '1rem', border: '1px solid #fecaca' }}>
+              <WifiOff size={48} color="#dc2626" style={{ margin: '0 auto 1rem' }} />
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#991b1b', marginBottom: '0.5rem' }}>Sin cache disponible</h3>
+              <p style={{ color: '#7f1d1d', fontSize: '0.875rem' }}>Conéctate a internet primero para guardar datos en el cache.</p>
             </div>
           ) : (
-            activities.map((activity) => (
-              <div key={activity.id} style={styles.workoutCard}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: activity.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <activity.icon size={24} color={activity.color} />
-                  </div>
-                  <div>
-                    <h4 style={{ fontWeight: '600', color: '#1f2937' }}>{activity.type}</h4>
-                    <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>{activity.date}</p>
+            <>
+              {dataSource === 'offline' && (
+                <div style={{ padding: '1rem', backgroundColor: '#fef3c7', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #fcd34d', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Database size={20} color="#92400e" />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '0.875rem', color: '#92400e', fontWeight: '600' }}>Modo Offline</p>
+                    <p style={{ fontSize: '0.75rem', color: '#78350f', marginTop: '0.25rem' }}>
+                      Mostrando datos del cache. Última sync: {localData.lastSync ? new Date(localData.lastSync).toLocaleTimeString() : 'Nunca'}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ))
+              )}
+              
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1f2937', marginBottom: '1rem' }}>Entrenamientos</h3>
+              
+              {activities.map((activity) => (
+                <div key={activity.id} style={styles.workoutCard}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: activity.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <activity.icon size={24} color={activity.color} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h4 style={{ fontWeight: '600', color: '#1f2937' }}>{activity.type}</h4>
+                        {activity.source === 'online' ? (
+                          <Cloud size={14} color="#3b82f6" title="Datos del servidor" />
+                        ) : (
+                          <HardDrive size={14} color="#f59e0b" title="Datos del cache" />
+                        )}
+                      </div>
+                      <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>{activity.date}</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #f3f4f6', fontSize: '0.75rem' }}>
+                    <div>
+                      <p style={{ color: '#9ca3af' }}>Distancia</p>
+                      <p style={{ color: '#1f2937', fontWeight: '600' }}>{activity.distance}</p>
+                    </div>
+                    <div>
+                      <p style={{ color: '#9ca3af' }}>Ritmo</p>
+                      <p style={{ color: '#1f2937', fontWeight: '600' }}>{activity.pace}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
           )}
         </div>
       </div>
@@ -654,7 +801,6 @@ const FitTrackApp = () => {
     switch (activeTab) {
       case 'home': return <HomeScreen />;
       case 'activity': return <ActivityScreen />;
-      case 'progress': return <ProgressScreen showNotification={showNotification} />;
       default: return <div style={styles.homeContainer}><div style={styles.content}><p style={{ textAlign: 'center', color: '#6b7280' }}>Próximamente...</p></div></div>;
     }
   };
@@ -662,6 +808,13 @@ const FitTrackApp = () => {
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <NotificationSystem notifications={notifications} onClose={closeNotification} />
+      
+      {!isOnline && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, backgroundColor: '#ef4444', color: 'white', padding: '0.5rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: '600', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <WifiOff size={16} />
+          Sin conexión - Modo Offline
+        </div>
+      )}
       
       {currentScreen === 'splash' ? (
         <SplashScreen />
